@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE configuration
+        PUBLIC "-//mybatis.org//DTD Config 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-config.dtd">
+<configuration>
+    <!-- 设置全局变量 Oracle,Mysql,MariaDB,SQLite,Hsqldb,PostgreSQL六种数据库-->
+    <properties>
+        <property name="dialect" value="mysql"/>
+    </properties>
+
+    <settings>
+        <!-- MyBatis日志名称的前缀 -->
+        <setting name="logPrefix" value="MAPPER."/>
+        <!--打印sql-->
+        <!-- logImpl 可选值：SLF4J,LOG4J,LOG4J2,JDK_LOGGING,COMMONS_LOGGING,STDOUT_LOGGING,NO_LOGGING,
+        或是实现了接口org.apache.ibatis.logging.Log 的，且构造方法是以字符串为参数的类的完全限定名。 -->
+        <!-- mybatis中SQL的日志级别为DEBUG，SQL执行结果的日志级别为TRACE -->
+        <setting name="logImpl" value="LOG4J2"/>
+    </settings>
+
+    <!-- 分页助手 -->
+    <plugins>
+        <plugin interceptor="com.github.pagehelper.PageHelper">
+            <!-- 设置数据库类型 Oracle,Mysql,MariaDB,SQLite,Hsqldb,PostgreSQL六种数据库-->
+            <property name="dialect" value="mysql"/>
+        </plugin>
+    </plugins>
+</configuration>
