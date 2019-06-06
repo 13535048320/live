@@ -30,6 +30,10 @@ public class LiveApplicationTests {
     public void contextLoads() {
     }
 
+    /**
+     *  本地音频(话筒设备)和视频(摄像头)抓取、混合并推送(录制)到服务器(本地)
+     * @throws FrameGrabber.Exception
+     */
     @Test
     public void recordWebcamAndMicrophone() throws FrameGrabber.Exception {
         int WEBCAM_DEVICE_INDEX = 0;   // 视频设备，本机默认是0
@@ -39,16 +43,17 @@ public class LiveApplicationTests {
         int captureHeight = 150;   // 摄像头高
         int FRAME_RATE = 25;     // 视频帧率:最低 25(即每秒25张图片,低于25就会出现闪屏)
         long startTime = 0;
-        long videoTS = 0;
+        long videoTS = 0;         // 时间戳
         /**
          * FrameGrabber 类包含：OpenCVFrameGrabber
          * (opencv_videoio),C1394FrameGrabber, FlyCaptureFrameGrabber,
          * OpenKinectFrameGrabber,PS3EyeFrameGrabber,VideoInputFrameGrabber, 和
          * FFmpegFrameGrabber.
          */
-        OpenCVFrameGrabber grabber = new OpenCVFrameGrabber(WEBCAM_DEVICE_INDEX);
+        OpenCVFrameGrabber grabber = new OpenCVFrameGrabber(WEBCAM_DEVICE_INDEX);  // 视频设备
         grabber.setImageWidth(captureWidth);
         grabber.setImageHeight(captureHeight);
+
         System.out.println("开始抓取摄像头...");
         int isTrue = 0;    // 摄像头开启状态
         try {
@@ -289,17 +294,27 @@ public class LiveApplicationTests {
         }
     }
 
+
+    /**
+     * 取视频帧并添加水印后推流到指定地址
+     *
+     * @throws FrameGrabber.Exception
+     * @throws FrameRecorder.Exception
+     * @throws InterruptedException
+     */
     @Test
     public void recordPushMp4() throws FrameGrabber.Exception, FrameRecorder.Exception, InterruptedException {
         String inputFile = "E:\\56.mp4";
         String outputFile = "rtmp://192.168.70.128:1935/live/test?username=admin&password=admin";
-        int v_rs = 25;
-        Loader.load(opencv_objdetect.class);
-        long startTime = 0;
+        int frameRate = 25;    // 帧率
+        int gopSize = 25;      // 关键帧的周期，一般与帧率相同或者是视频帧率的两倍
+        Loader.load(opencv_objdetect.class); //加载分类器
+        long startTime = 0;    //
         FrameGrabber grabber = FFmpegFrameGrabber.createDefault(inputFile);
         try {
             grabber.start();
         } catch (Exception e) {
+            e.printStackTrace();
             try {
                 grabber.restart();
             } catch (Exception e1) {
@@ -307,22 +322,22 @@ public class LiveApplicationTests {
             }
         }
 
-        OpenCVFrameConverter.ToIplImage converter = new OpenCVFrameConverter.ToIplImage();
-        Frame grabframe = grabber.grab();
+        OpenCVFrameConverter.ToIplImage converter = new OpenCVFrameConverter.ToIplImage(); // 用于将Frame转换为Mat和IplImage，Mat和IplImage转为Frame
+        Frame grabframe = grabber.grab();           // 抓取帧
 //        opencv_core.IplImage grabbedImage = null;
         opencv_core.Mat mat = null;
         if (grabframe != null) {
             System.out.println("取到第一帧");
 //            grabbedImage = converter.convert(grabframe);
-            mat = converter.convertToMat(grabframe);
+            mat = converter.convertToMat(grabframe);            // 将帧转为Mat，Mat可用于添加水印
         } else {
             System.out.println("没有取到第一帧");
         }
 
         // 视频帧加文字和图片水印
-        opencv_core.Mat logo = opencv_imgcodecs.imread("E://logo1.jpg");
-        opencv_core.Mat mask = opencv_imgcodecs.imread("E://logo1.jpg",0);
-        opencv_imgproc.resize(logo, logo, new opencv_core.Size(150, 100));
+        opencv_core.Mat logo = opencv_imgcodecs.imread("E://logo1.jpg");                // 取水印图片
+        opencv_core.Mat mask = opencv_imgcodecs.imread("E://logo1.jpg", 0);           // 取水印图片掩码
+        opencv_imgproc.resize(logo, logo, new opencv_core.Size(150, 100));// 调整图片大小
         opencv_imgproc.resize(mask, mask, new opencv_core.Size(150, 100));
 
         // 文字水印
@@ -330,12 +345,13 @@ public class LiveApplicationTests {
         opencv_imgproc.putText(mat, "test", new opencv_core.Point(10, 50), opencv_imgproc.CV_FONT_VECTOR0, 1.2, new opencv_core.Scalar(0, 255, 255, 0));
 
         // 图片水印
-        opencv_core.Mat logoMat = mat.apply(new opencv_core.Rect(mat.cols() - 150, 0, 100, 100));
-        logo.copyTo(logoMat,mask);
+        opencv_core.Rect rect = new opencv_core.Rect(mat.cols() - 150, 0, 100, 100);   // 设置水印的位置和大小
+        opencv_core.Mat logoMat = mat.apply(rect);     // 获取Mat添加水印的位置和大小
+        logo.copyTo(logoMat, mask);            // 添加水印，并用掩码覆盖水印背景
 
 //        如果想要保存图片,可以使用 opencv_imgcodecs.cvSaveImage("hello.jpg", grabbedImage);来保存图片
 //        opencv_imgcodecs.cvSaveImage("E://hello.jpg", grabbedImage);
-        opencv_imgcodecs.imwrite("E://hello.jpg", mat);
+        opencv_imgcodecs.imwrite("E://hello.jpg", mat);          // 保存添加水印后的Mat为图片
 
 
         FrameRecorder recorder;
@@ -344,10 +360,10 @@ public class LiveApplicationTests {
         } catch (org.bytedeco.javacv.FrameRecorder.Exception e) {
             throw e;
         }
-        recorder.setVideoCodec(avcodec.AV_CODEC_ID_H264); // avcodec.AV_CODEC_ID_H264
-        recorder.setFormat("flv");
-        recorder.setFrameRate(v_rs);
-        recorder.setGopSize(v_rs);
+        recorder.setVideoCodec(avcodec.AV_CODEC_ID_H264); // avcodec.AV_CODEC_ID_H264 视频编码标准
+        recorder.setFormat("flv");              // 封装格式，如果是推送到rtmp就必须是flv封装格式
+        recorder.setFrameRate(frameRate);       // 设置帧率
+        recorder.setGopSize(gopSize);          // 设置关键帧的周期
         System.out.println("准备开始推流...");
         try {
             recorder.start();
@@ -366,16 +382,18 @@ public class LiveApplicationTests {
             }
         }
         System.out.println("开始推流");
-        CanvasFrame frame = new CanvasFrame("camera", CanvasFrame.getDefaultGamma() / grabber.getGamma());
+
+        CanvasFrame frame = new CanvasFrame("camera", CanvasFrame.getDefaultGamma() / grabber.getGamma()); // 窗口显示
         frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         frame.setAlwaysOnTop(true);
-        while (frame.isVisible() && (grabframe = grabber.grab()) != null) {
+
+        while (frame.isVisible() && (grabframe = grabber.grab()) != null) {  // 循环取帧
             System.out.println("推流...");
-            frame.showImage(grabframe);
+            frame.showImage(grabframe);                        // 将帧显示在窗口
 //            grabbedImage = converter.convert(grabframe);
 //            Frame rotatedFrame = converter.convert(grabbedImage);
-            mat = converter.convertToMat(grabframe);
-            Frame rotatedFrame = converter.convert(mat);
+            mat = converter.convertToMat(grabframe);           // 将帧转为Mat，Mat可用于添加水印
+            Frame rotatedFrame = converter.convert(mat);       // 再讲Mat转为帧
 
             if (startTime == 0) {
                 startTime = System.currentTimeMillis();
@@ -384,7 +402,6 @@ public class LiveApplicationTests {
             if (rotatedFrame != null) {
                 recorder.record(rotatedFrame);
             }
-
             Thread.sleep(40);
         }
         frame.dispose();
@@ -394,14 +411,17 @@ public class LiveApplicationTests {
         System.exit(2);
     }
 
+    /**
+     *  从nginx服务器拉流并输出成test.flv
+     */
     @Test
     public void recordPull() {
         String inputFile = "rtmp://192.168.70.128:1935/live/test";
         String outputFile = "E:\\test.flv";
-        int audioChannel = 1;
+        int audioChannel = 1;     // 声道，2 立体声，1 单声道，0 无音频
         boolean status = true;
-
         boolean isStart = true;
+
         // 获取视频源
         FFmpegFrameGrabber grabber = new FFmpegFrameGrabber(inputFile);
         // 流媒体输出地址，分辨率（长，高），是否录制音频（0:不录制/1:录制）
@@ -413,32 +433,48 @@ public class LiveApplicationTests {
         try {
             grabber.start();
             recorder.setInterleaved(true);
+
             // 该参数用于降低延迟
             // recorder.setVideoOption("tune", "zerolatency");
             // ultrafast(终极快)提供最少的压缩（低编码器CPU）和最大的视频流大小；
             // 参考以下命令: ffmpeg -i '' -crf 30 -preset ultrafast
+            //ultrafast、superfast、veryfast、faster、fast、medium、slow、slower、veryslow、placebo。从快到慢，参数越来越EP。默认是medium。
             recorder.setVideoOption("preset", "ultrafast");
+
             // 提供输出流封装格式(rtmp协议只支持flv封装格式)
             recorder.setFormat("flv");
+
             // video的编码格式
             recorder.setVideoCodec(avcodec.AV_CODEC_ID_H264);
+            // 在优先保证画面质量（也不太在乎转码时间）的情况下，使用-crf参数来控制转码是比较适宜的。
+            // 这个参数的取值范围为0~51，其中0为无损模式，数值越大，画质越差，生成的文件却越小。
+            // 从主观上讲，18~28是一个合理的范围。
             recorder.setVideoOption("crf", "30");
-            // 不可变(固定)音频比特率
             recorder.setAudioOption("crf", "0");
-            // 2000 kb/s, 720P视频的合理比特率范围
-            // recorder.setVideoBitrate(2000000);
+
             recorder.setVideoQuality(0);
+
             // 视频帧率(保证视频质量的情况下最低25，低于25会出现闪屏
             recorder.setFrameRate(25);
+
             // 关键帧间隔，一般与帧率相同或者是视频帧率的两倍
             recorder.setGopSize(25 * 2);
+
+            // 最高质量
             recorder.setAudioQuality(0);
-            // 音频比特率
+
+
+            // 不可变(固定)音频比特率
+            // 2000 kb/s, 720P视频的合理比特率范围
+            // recorder.setVideoBitrate(2000000);
             recorder.setAudioBitrate(192000);
+
             // 音频采样率
             recorder.setSampleRate(44100);
+
             // 双通道(立体声)
             recorder.setAudioChannels(2);
+
             // 音频编/解码器
             recorder.setAudioCodec(avcodec.AV_CODEC_ID_AAC);
             recorder.start();
@@ -479,19 +515,5 @@ public class LiveApplicationTests {
                 }
             }
         }
-    }
-
-    @Test
-    public void imgTest() throws IOException {
-        Image ima= ImageIO.read(new File("E:/logo.png"));
-        BufferedImage bufIma=new BufferedImage(ima.getWidth(null),ima.getHeight(null),BufferedImage.TYPE_INT_BGR);
-
-        //这里是关键部分
-        Graphics2D g=bufIma.createGraphics();
-        bufIma = g.getDeviceConfiguration().createCompatibleImage(ima.getWidth(null), ima.getHeight(null), Transparency.TRANSLUCENT);
-        g = bufIma.createGraphics();
-
-        g.drawImage(ima, 0, 0, null);
-        ImageIO.write(bufIma, "png", new File("E:/logo-test.png"));
     }
 }
