@@ -181,6 +181,8 @@ server {
 http://IP:8081/stat
 ```
 
+## 9. JavaCV使用
+代码在测试类中
 
 
 
